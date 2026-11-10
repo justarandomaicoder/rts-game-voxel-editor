@@ -11,23 +11,36 @@
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding: 10px; background: #111827; border: 1px solid #374151; border-radius: 10px; }
     .group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 7px; border: 1px solid #374151; border-radius: 8px; }
     label { display: flex; align-items: center; gap: 5px; color: #cbd5e1; font-size: 12px; }
-    input[type=number], select { padding: 6px; color: #e5e7eb; background: #0f172a; border: 1px solid #4b5563; border-radius: 5px; }
+    input[type=number], input[type=text], select { padding: 6px; color: #e5e7eb; background: #0f172a; border: 1px solid #4b5563; border-radius: 5px; }
     input[type=number] { width: 65px; }
+    input[type=text] { min-width: 130px; }
+    input[type=color] { width: 34px; height: 30px; padding: 2px; background: #0f172a; border: 1px solid #4b5563; border-radius: 5px; }
     input[type=range] { accent-color: #60a5fa; }
     button { padding: 8px 11px; border: 0; border-radius: 7px; color: white; background: #2563eb; font-weight: 600; cursor: pointer; }
     button:hover { filter: brightness(1.12); }
     button.secondary { background: #4b5563; }
     button.danger { background: #b91c1c; }
-    .swatch { display: inline-block; width: 18px; height: 18px; flex: 0 0 18px; border: 1px solid #d1d5db; border-radius: 4px; box-shadow: inset 0 0 0 1px #0005; }
     .status { display: flex; justify-content: space-between; gap: 10px; padding: 10px 4px; color: #9ca3af; font-size: 12px; }
     .workspace { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; }
     .panel { min-width: 0; padding: 10px; background: #0f172a; border: 1px solid #374151; border-radius: 10px; }
     .panel h2 { margin: 0 0 8px; color: #dbeafe; font-size: 14px; }
     canvas { display: block; width: 100%; background: #0b1120; border: 1px solid #253047; border-radius: 7px; }
-    #editorCanvas { height: min(68vh, 660px); cursor: crosshair; }
+    #editorCanvas { height: min(62vh, 610px); cursor: crosshair; }
     #previewCanvas { height: min(68vh, 660px); cursor: crosshair; touch-action: none; }
-    #previewCanvas.dragging { cursor: grabbing; }
+    #previewCanvas.rotating { cursor: grabbing; }
     .hint { padding-top: 8px; color: #9ca3af; font-size: 12px; }
+    .layer-controls { display: flex; align-items: center; gap: 10px; margin-top: 9px; padding: 8px; background: #111827; border-radius: 7px; }
+    .layer-controls input { flex: 1; min-width: 80px; }
+    .block-picker { position: relative; }
+    .picker-button { display: flex; align-items: center; gap: 7px; min-width: 155px; text-align: left; background: #0f172a; border: 1px solid #4b5563; }
+    .swatch { display: inline-block; width: 18px; height: 18px; flex: 0 0 18px; border: 1px solid #d1d5db; border-radius: 4px; box-shadow: inset 0 0 0 1px #0005; }
+    .picker-menu { display: none; position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; width: max(220px, 100%); max-height: 280px; overflow: auto; padding: 4px; background: #111827; border: 1px solid #4b5563; border-radius: 7px; box-shadow: 0 8px 22px #0009; }
+    .picker-menu.open { display: block; }
+    .picker-option { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px; color: #e5e7eb; background: transparent; text-align: left; font-weight: 400; }
+    .picker-option:hover, .picker-option.active { background: #263449; }
+    .block-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 9px; padding: 8px; border: 1px solid #263449; border-radius: 7px; }
+    .block-tools .texture-field { flex: 1; min-width: 180px; }
+    .block-tools .texture-field input { width: 100%; }
     @media (max-width: 900px) { .workspace { grid-template-columns: 1fr; } #editorCanvas, #previewCanvas { height: 52vh; } }
   </style>
 </head>
@@ -39,24 +52,35 @@
         <label>Y <input id="yDim" type="number" min="1" max="128" value="12"></label>
         <label>Z <input id="zDim" type="number" min="1" max="128" value="12"></label>
         <button id="newGridBtn">New Grid</button>
+        <button id="expandGridBtn" class="secondary">Expand Grid</button>
       </div>
       <div class="group"><label>View <select id="viewMode"><option value="xy">XY</option><option value="xz">XZ</option><option value="yz">YZ</option></select></label></div>
-      <div class="group"><label>Layer <input id="layerSlider" type="range" min="0" max="11" value="0"></label><span id="layerReadout">0</span></div>
-      <div class="group"><label>Brush <input id="brushSlider" type="range" min="1" max="5" value="1"></label><span id="brushReadout">1</span></div>
-      <div class="group"><label>Block <span id="blockSwatch" class="swatch" aria-label="Selected block color"></span><select id="blockSelect"></select></label></div>
+      <div class="group"><label>Block</label><div class="block-picker"><button id="pickerButton" class="picker-button" type="button"><span id="pickerSwatch" class="swatch"></span><span id="pickerLabel">Block</span> ▾</button><div id="pickerMenu" class="picker-menu"></div></div></div>
       <button id="saveBtn">Save .blo</button>
       <button id="loadBtn" class="secondary">Load .blo</button>
       <input id="fileInput" type="file" accept=".blo,.json" hidden>
       <button id="clearLayerBtn" class="danger">Clear Layer</button>
     </div>
-    <div class="status"><span id="statusText">Ready</span><span>2D: left-click paints, right-click erases · 3D: hover a face, left-click to add, right-drag to rotate</span></div>
+    <div class="status"><span id="statusText">Ready</span><span>2D: left-click paints, right-click erases · 3D: left-click adds, right-click removes, middle-drag rotates</span></div>
     <section class="workspace">
-      <div class="panel"><h2>2D Layer Editor</h2><canvas id="editorCanvas" width="960" height="640"></canvas><div class="hint">The .blo format uses Y as its vertical axis.</div></div>
-      <div class="panel"><h2>3D Preview</h2><canvas id="previewCanvas" width="800" height="640"></canvas><div class="hint">Hover a visible face to highlight it. Left-click places the selected block on that face.</div></div>
+      <div class="panel">
+        <h2>2D Layer Editor</h2>
+        <canvas id="editorCanvas" width="960" height="640"></canvas>
+        <div class="layer-controls"><label for="layerSlider">Layer</label><input id="layerSlider" type="range" min="0" max="11" value="0"><span id="layerReadout">0</span></div>
+        <div class="hint">The .blo format uses Y as its vertical axis. Brush size is fixed to one block.</div>
+        <div class="block-tools">
+          <label>Name <input id="blockName" type="text" placeholder="Block name"></label>
+          <label>Color <input id="blockColor" type="color" value="#39833b"></label>
+          <label class="texture-field">Texture <input id="blockTexture" type="text" placeholder="Optional texture path"></label>
+          <button id="applyBlockBtn">Update Block</button>
+          <button id="addBlockBtn" class="secondary">Add Block Type</button>
+        </div>
+      </div>
+      <div class="panel"><h2>3D Preview</h2><canvas id="previewCanvas" width="800" height="640"></canvas><div class="hint">Hover an exposed face to highlight it. Click to add the selected block adjacent to that face.</div></div>
     </section>
   </main>
 <script>
-  // .blo stores X as the fastest axis, then Z, then Y: index = x + XDim * (z + ZDim * y).
+  // .blo order: X is fastest, then Z, then Y: index = x + XDim * (z + ZDim * y).
   const defaultPalette = [
     { Name: "Empty", HasBlockSmoothing: true, Transparency: true, OcclusionType: 3, Textures: [], ShadowTintFactor: "1, 1, 1", LightColor: "0, 0, 0, 255" },
     { Name: "Metal Flat", Visible: true, Textures: ["Content/blocks/metal/flat metal"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" },
@@ -69,219 +93,86 @@
     { Name: "Glass with borders", Visible: true, UseAlpha: true, HasBlockSmoothing: true, Transparency: true, OcclusionType: 1, Textures: ["Content/blocks/glass/bordered window"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" }
   ];
   const clone = (x) => JSON.parse(JSON.stringify(x));
-  const state = {
-    xDim: 12, yDim: 12, zDim: 12, blocks: new Uint32Array(12 * 12 * 12), palette: clone(defaultPalette),
-    selectedType: 1, view: "xy", layer: 0, brushSize: 1, fileName: "voxel.blo", extraFileData: {},
-    yaw: -0.75, pitch: 0.55, targetYaw: -0.75, targetPitch: 0.55,
-    dragging: false, lastX: 0, lastY: 0, frame: 0, previewFaces: [], hoveredFace: null
-  };
+  const state = { xDim:12,yDim:12,zDim:12,blocks:new Uint32Array(1728),palette:clone(defaultPalette),selectedType:1,view:"xy",layer:0,fileName:"voxel.blo",extraFileData:{},yaw:-.75,pitch:.55,targetYaw:-.75,targetPitch:.55,rotating:false,lastX:0,lastY:0,frame:0,previewFaces:[],hoveredFace:null };
   const $ = (id) => document.getElementById(id);
-  const editor = $("editorCanvas"), ectx = editor.getContext("2d");
-  const preview = $("previewCanvas"), pctx = preview.getContext("2d");
-  const clamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
-  const indexOf = (x, y, z) => x + state.xDim * (z + state.zDim * y);
-  const inBounds = (x, y, z) => x >= 0 && x < state.xDim && y >= 0 && y < state.yDim && z >= 0 && z < state.zDim;
-  function getBlock(x, y, z) { return inBounds(x, y, z) ? state.blocks[indexOf(x, y, z)] : 0; }
-  function setBlock(x, y, z, value) { if (inBounds(x, y, z)) state.blocks[indexOf(x, y, z)] = value; }
+  const editor=$("editorCanvas"), ectx=editor.getContext("2d"), preview=$("previewCanvas"), pctx=preview.getContext("2d");
+  const clamp=(n,lo,hi)=>Math.min(Math.max(n,lo),hi);
+  const indexOf=(x,y,z)=>x+state.xDim*(z+state.zDim*y);
+  const inBounds=(x,y,z)=>x>=0&&x<state.xDim&&y>=0&&y<state.yDim&&z>=0&&z<state.zDim;
+  function getBlock(x,y,z){return inBounds(x,y,z)?state.blocks[indexOf(x,y,z)]:0;}
+  function setBlock(x,y,z,v){if(inBounds(x,y,z))state.blocks[indexOf(x,y,z)]=v;}
 
   function blockColor(type) {
-    if (!type) return "#0b1120";
-    const block = state.palette[type] || {}, name = String(block.Name || "").toLowerCase();
-    const textures = (block.Textures || []).join(" ").toLowerCase();
-    if (name.includes("dark trunk") || textures.includes("trunk")) return "#704923";
-    if (name.includes("leaves") || textures.includes("leaves") || textures.includes("hedge")) return "#39833b";
-    if (name.includes("red")) return "#dc3c3c";
-    if (name.includes("blue")) return "#4e8bd6";
-    if (name.includes("glass")) return "#91c9df";
-    if (name.includes("carpet")) return "#5376bd";
-    if (name.includes("vent")) return "#a5aab1";
-    if (name.includes("metal")) return "#aeb7c2";
+    if(type===0)return "#0b1120";
+    const b=state.palette[type]||{}, n=String(b.EditorColor||"").trim();
+    if(/^#[0-9a-f]{6}$/i.test(n))return n;
+    const name=String(b.Name||"").toLowerCase(), textures=(b.Textures||[]).join(" ").toLowerCase();
+    if(name.includes("dark trunk")||textures.includes("trunk"))return "#704923";
+    if(name.includes("leaves")||textures.includes("leaves")||textures.includes("hedge"))return "#39833b";
+    if(name.includes("red"))return "#dc3c3c";
+    if(name.includes("blue"))return "#4e8bd6";
+    if(name.includes("glass"))return "#91c9df";
+    if(name.includes("carpet"))return "#5376bd";
+    if(name.includes("vent"))return "#a5aab1";
+    if(name.includes("metal"))return "#aeb7c2";
     return "#94a3b8";
   }
-  function updatePalette() {
-    const select = $("blockSelect"); select.innerHTML = "";
-    state.palette.forEach((b, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = `${i}: ${b.Name || "Block"}`; select.appendChild(o); });
-    state.selectedType = clamp(state.selectedType, 0, Math.max(0, state.palette.length - 1));
-    select.value = String(state.selectedType);
-    $("blockSwatch").style.backgroundColor = blockColor(state.selectedType);
-    $("blockSwatch").title = `Color: ${blockColor(state.selectedType)}`;
+  function updatePicker() {
+    const menu=$("pickerMenu"); menu.innerHTML="";
+    state.palette.forEach((b,i)=>{
+      const button=document.createElement("button"); button.type="button"; button.className="picker-option"+(i===state.selectedType?" active":"");
+      const swatch=document.createElement("span"); swatch.className="swatch"; swatch.style.backgroundColor=blockColor(i);
+      const label=document.createElement("span"); label.textContent=`${i}: ${b.Name||"Block"}`;
+      button.append(swatch,label); button.addEventListener("click",()=>selectBlock(i)); menu.appendChild(button);
+    });
+    const current=state.palette[state.selectedType]||state.palette[0];
+    $("pickerSwatch").style.backgroundColor=blockColor(state.selectedType);
+    $("pickerLabel").textContent=`${state.selectedType}: ${current?.Name||"Block"}`;
   }
-  function layers() { return state.view === "xy" ? state.zDim : state.view === "xz" ? state.yDim : state.xDim; }
-  function updateLayer() {
-    state.layer = clamp(state.layer, 0, layers() - 1);
-    $("layerSlider").max = String(Math.max(0, layers() - 1));
-    $("layerSlider").value = String(state.layer);
-    $("layerReadout").textContent = String(state.layer);
+  function selectBlock(i) {
+    state.selectedType=clamp(i,0,state.palette.length-1); updatePicker(); $("pickerMenu").classList.remove("open");
+    const b=state.palette[state.selectedType]||{};
+    $("blockName").value=b.Name||""; $("blockColor").value=blockColor(state.selectedType);
+    $("blockTexture").value=(b.Textures||[]).join(", ");
   }
-  function editorDims() {
-    if (state.view === "xy") return [state.xDim, state.yDim];
-    if (state.view === "xz") return [state.xDim, state.zDim];
-    return [state.yDim, state.zDim];
-  }
-  function editorVoxel(col, row) {
-    if (state.view === "xy") return { x: col, y: state.yDim - 1 - row, z: state.layer };
-    if (state.view === "xz") return { x: col, y: state.layer, z: state.zDim - 1 - row };
-    return { x: state.layer, y: state.yDim - 1 - col, z: state.zDim - 1 - row };
-  }
-  function editorLayout() {
-    const [cols, rows] = editorDims(), margin = 30;
-    const cell = Math.max(4, Math.min((editor.width - margin * 2) / cols, (editor.height - margin * 2) / rows));
-    return { cols, rows, cell, ox: (editor.width - cols * cell) / 2, oy: (editor.height - rows * cell) / 2 };
-  }
-  function renderEditor() {
-    const { cols, rows, cell, ox, oy } = editorLayout();
-    ectx.clearRect(0, 0, editor.width, editor.height);
-    ectx.fillStyle = "#cbd5e1"; ectx.font = "14px Arial";
-    ectx.fillText(`${state.view.toUpperCase()} view · layer ${state.layer}`, 14, 20);
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      const p = editorVoxel(c, r), px = ox + c * cell, py = oy + r * cell;
-      ectx.fillStyle = blockColor(getBlock(p.x, p.y, p.z));
-      ectx.fillRect(px + 1, py + 1, cell - 2, cell - 2);
-      ectx.strokeStyle = "#2d3748"; ectx.strokeRect(px, py, cell, cell);
-    }
-  }
-  function paint(event) {
-    const rect = editor.getBoundingClientRect();
-    const mx = (event.clientX - rect.left) * editor.width / rect.width;
-    const my = (event.clientY - rect.top) * editor.height / rect.height;
-    const { cols, rows, cell, ox, oy } = editorLayout();
-    const c = Math.floor((mx - ox) / cell), r = Math.floor((my - oy) / cell);
-    if (c < 0 || r < 0 || c >= cols || r >= rows) return;
-    const p = editorVoxel(c, r), radius = Math.floor(state.brushSize / 2);
-    const value = event.button === 2 || (event.buttons & 2) ? 0 : state.selectedType;
-    for (let dx = -radius; dx <= radius; dx++) for (let dy = -radius; dy <= radius; dy++) for (let dz = -radius; dz <= radius; dz++) setBlock(p.x + dx, p.y + dy, p.z + dz, value);
-    renderEditor(); schedulePreview();
-  }
-  function clearLayer() {
-    if (state.view === "xy") for (let x=0;x<state.xDim;x++) for (let y=0;y<state.yDim;y++) setBlock(x,y,state.layer,0);
-    else if (state.view === "xz") for (let x=0;x<state.xDim;x++) for (let z=0;z<state.zDim;z++) setBlock(x,state.layer,z,0);
-    else for (let y=0;y<state.yDim;y++) for (let z=0;z<state.zDim;z++) setBlock(state.layer,y,z,0);
-    $("statusText").textContent = "Current layer cleared"; renderEditor(); schedulePreview();
-  }
-  function newGrid() {
-    const x=clamp(Number($("xDim").value)||12,1,128), y=clamp(Number($("yDim").value)||12,1,128), z=clamp(Number($("zDim").value)||12,1,128);
-    Object.assign(state,{xDim:x,yDim:y,zDim:z,blocks:new Uint32Array(x*y*z),palette:clone(defaultPalette),selectedType:1,layer:0,fileName:"voxel.blo",extraFileData:{},hoveredFace:null});
-    $("xDim").value=x; $("yDim").value=y; $("zDim").value=z; updatePalette(); updateLayer(); renderEditor(); schedulePreview();
-    $("statusText").textContent=`Created ${x} × ${y} × ${z} grid`;
-  }
-  function loadBlo(json, filename) {
-    const x=Number(json.XDim), y=Number(json.YDim), z=Number(json.ZDim);
-    if (!Number.isInteger(x)||!Number.isInteger(y)||!Number.isInteger(z)||x<1||y<1||z<1||!Array.isArray(json.Blocks)) throw new Error("Invalid .blo dimensions or Blocks array");
-    state.xDim=x; state.yDim=y; state.zDim=z; state.blocks=new Uint32Array(x*y*z);
-    for (let i=0;i<Math.min(state.blocks.length,json.Blocks.length);i++) state.blocks[i]=Math.max(0,Number(json.Blocks[i])||0);
-    state.palette=Array.isArray(json.BlockTypeInstances)&&json.BlockTypeInstances.length?clone(json.BlockTypeInstances):clone(defaultPalette);
-    state.extraFileData={...json}; for (const key of ["XDim","YDim","ZDim","Blocks","BlockTypeInstances"]) delete state.extraFileData[key];
-    state.fileName=filename||"voxel.blo"; state.selectedType=Math.min(1,state.palette.length-1); state.layer=0; state.hoveredFace=null;
-    $("xDim").value=x; $("yDim").value=y; $("zDim").value=z; updatePalette(); updateLayer(); renderEditor(); schedulePreview();
-    $("statusText").textContent=`Loaded ${state.fileName}`;
-  }
-  function saveBlo() {
-    const out={...state.extraFileData,XDim:state.xDim,YDim:state.yDim,ZDim:state.zDim,Blocks:Array.from(state.blocks),BlockTypeInstances:clone(state.palette)};
-    const url=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:"application/json"}));
-    const a=document.createElement("a"); a.href=url; a.download=state.fileName||"voxel.blo"; a.click(); URL.revokeObjectURL(url);
-    $("statusText").textContent=`Saved ${a.download}`;
-  }
+  function layers(){return state.view==="xy"?state.zDim:state.view==="xz"?state.yDim:state.xDim;}
+  function updateLayer(){state.layer=clamp(state.layer,0,layers()-1);$("layerSlider").max=String(Math.max(0,layers()-1));$("layerSlider").value=String(state.layer);$("layerReadout").textContent=String(state.layer);}
+  function editorDims(){if(state.view==="xy")return[state.xDim,state.yDim];if(state.view==="xz")return[state.xDim,state.zDim];return[state.yDim,state.zDim];}
+  function editorVoxel(c,r){if(state.view==="xy")return{x:c,y:state.yDim-1-r,z:state.layer};if(state.view==="xz")return{x:c,y:state.layer,z:state.zDim-1-r};return{x:state.layer,y:state.yDim-1-c,z:state.zDim-1-r};}
+  function editorLayout(){const[cols,rows]=editorDims(),m=30,cell=Math.max(4,Math.min((editor.width-2*m)/cols,(editor.height-2*m)/rows));return{cols,rows,cell,ox:(editor.width-cols*cell)/2,oy:(editor.height-rows*cell)/2};}
+  function renderEditor(){const{cols,rows,cell,ox,oy}=editorLayout();ectx.clearRect(0,0,editor.width,editor.height);ectx.fillStyle="#cbd5e1";ectx.font="14px Arial";ectx.fillText(`${state.view.toUpperCase()} view · layer ${state.layer}`,14,20);for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const p=editorVoxel(c,r),px=ox+c*cell,py=oy+r*cell;ectx.fillStyle=blockColor(getBlock(p.x,p.y,p.z));ectx.fillRect(px+1,py+1,cell-2,cell-2);ectx.strokeStyle="#2d3748";ectx.strokeRect(px,py,cell,cell);}}
+  function paintEditor(e){const rect=editor.getBoundingClientRect(),mx=(e.clientX-rect.left)*editor.width/rect.width,my=(e.clientY-rect.top)*editor.height/rect.height,{cols,rows,cell,ox,oy}=editorLayout(),c=Math.floor((mx-ox)/cell),r=Math.floor((my-oy)/cell);if(c<0||r<0||c>=cols||r>=rows)return;const p=editorVoxel(c,r),v=(e.button===2||(e.buttons&2))?0:state.selectedType;setBlock(p.x,p.y,p.z,v);renderEditor();schedulePreview();}
+  function clearLayer(){if(state.view==="xy")for(let x=0;x<state.xDim;x++)for(let y=0;y<state.yDim;y++)setBlock(x,y,state.layer,0);else if(state.view==="xz")for(let x=0;x<state.xDim;x++)for(let z=0;z<state.zDim;z++)setBlock(x,state.layer,z,0);else for(let y=0;y<state.yDim;y++)for(let z=0;z<state.zDim;z++)setBlock(state.layer,y,z,0);$("statusText").textContent="Current layer cleared";renderEditor();schedulePreview();}
+  function newGrid(){const x=clamp(Number($("xDim").value)||12,1,128),y=clamp(Number($("yDim").value)||12,1,128),z=clamp(Number($("zDim").value)||12,1,128);Object.assign(state,{xDim:x,yDim:y,zDim:z,blocks:new Uint32Array(x*y*z),palette:clone(defaultPalette),selectedType:1,layer:0,fileName:"voxel.blo",extraFileData:{},hoveredFace:null});updatePicker();selectBlock(1);updateLayer();renderEditor();schedulePreview();$("statusText").textContent=`New ${x} × ${y} × ${z} grid created`;}
+  function expandGrid(){const nx=clamp(Number($("xDim").value)||state.xDim,1,128),ny=clamp(Number($("yDim").value)||state.yDim,1,128),nz=clamp(Number($("zDim").value)||state.zDim,1,128);if(nx<state.xDim||ny<state.yDim||nz<state.zDim){$("statusText").textContent="Expand Grid only grows dimensions; enter dimensions at least as large as the current grid.";return;}const old={x:state.xDim,y:state.yDim,z:state.zDim,blocks:state.blocks},grown=new Uint32Array(nx*ny*nz);for(let y=0;y<old.y;y++)for(let z=0;z<old.z;z++)for(let x=0;x<old.x;x++)grown[x+nx*(z+nz*y)]=old.blocks[x+old.x*(z+old.z*y)];state.xDim=nx;state.yDim=ny;state.zDim=nz;state.blocks=grown;updateLayer();renderEditor();schedulePreview();$("statusText").textContent=`Grid expanded to ${nx} × ${ny} × ${nz}; existing voxels preserved.`;}
+  function loadBlo(json,filename){const x=Number(json.XDim),y=Number(json.YDim),z=Number(json.ZDim);if(!Number.isInteger(x)||!Number.isInteger(y)||!Number.isInteger(z)||x<1||y<1||z<1||!Array.isArray(json.Blocks))throw Error("Invalid .blo dimensions or Blocks array");state.xDim=x;state.yDim=y;state.zDim=z;state.blocks=new Uint32Array(x*y*z);for(let i=0;i<Math.min(state.blocks.length,json.Blocks.length);i++)state.blocks[i]=Math.max(0,Number(json.Blocks[i])||0);state.palette=Array.isArray(json.BlockTypeInstances)&&json.BlockTypeInstances.length?clone(json.BlockTypeInstances):clone(defaultPalette);state.extraFileData={...json};for(const k of["XDim","YDim","ZDim","Blocks","BlockTypeInstances"])delete state.extraFileData[k];state.fileName=filename||"voxel.blo";state.selectedType=Math.min(1,state.palette.length-1);state.layer=0;state.hoveredFace=null;$("xDim").value=x;$("yDim").value=y;$("zDim").value=z;updatePicker();selectBlock(state.selectedType);updateLayer();renderEditor();schedulePreview();$("statusText").textContent=`Loaded ${state.fileName}`;}
+  function saveBlo(){const out={...state.extraFileData,XDim:state.xDim,YDim:state.yDim,ZDim:state.zDim,Blocks:Array.from(state.blocks),BlockTypeInstances:clone(state.palette)},url=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:"application/json"})),a=document.createElement("a");a.href=url;a.download=state.fileName||"voxel.blo";a.click();URL.revokeObjectURL(url);$("statusText").textContent=`Saved ${a.download}`;}
+  function updateBlock(){const b=state.palette[state.selectedType];if(!b)return;b.Name=$("blockName").value.trim()||`Block ${state.selectedType}`;b.EditorColor=$("blockColor").value;const tex=$("blockTexture").value.split(",").map(s=>s.trim()).filter(Boolean);b.Textures=tex;updatePicker();renderEditor();schedulePreview();$("statusText").textContent=`Updated block type ${state.selectedType}`;}
+  function addBlockType(){const i=state.palette.length,name=$("blockName").value.trim()||`Custom Block ${i}`,color=$("blockColor").value||"#94a3b8",textures=$("blockTexture").value.split(",").map(s=>s.trim()).filter(Boolean);state.palette.push({Name:name,Visible:true,Textures:textures,ShadowTintFactor:"0.7843138, 0.7843138, 0.7843138",LightColor:"0, 0, 0, 255",Scale:"1, 1, 1",EditorColor:color});state.selectedType=i;updatePicker();selectBlock(i);$("statusText").textContent=`Added block type ${i}: ${name}`;}
 
-  const cubeFaces=[
-    {n:[1,0,0],s:1.08,v:[[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]]},
-    {n:[-1,0,0],s:.72,v:[[-.5,.5,-.5],[-.5,-.5,-.5],[-.5,-.5,.5],[-.5,.5,.5]]},
-    {n:[0,1,0],s:1.22,v:[[-.5,.5,-.5],[.5,.5,-.5],[.5,.5,.5],[-.5,.5,.5]]},
-    {n:[0,-1,0],s:.62,v:[[-.5,-.5,-.5],[.5,-.5,-.5],[.5,-.5,.5],[-.5,-.5,.5]]},
-    {n:[0,0,1],s:.92,v:[[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]]},
-    {n:[0,0,-1],s:.82,v:[[.5,-.5,-.5],[-.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5]]}
-  ];
-  function shade(hex,f) { const n=parseInt(hex.slice(1),16); return `rgb(${Math.round(clamp((n>>16&255)*f,0,255))},${Math.round(clamp((n>>8&255)*f,0,255))},${Math.round(clamp((n&255)*f,0,255))})`; }
-  function project(x,y,z,cx,cy,scale,camera) {
-    const c=Math.cos(state.yaw), s=Math.sin(state.yaw), xr=c*x-s*z, zr=s*x+c*z;
-    const cp=Math.cos(state.pitch), sp=Math.sin(state.pitch), sy=y*cp-zr*sp, depth=y*sp+zr*cp, persp=camera/(camera+depth);
-    return {x:cx+xr*scale*persp,y:cy-sy*scale*persp,depth};
-  }
-  function pointInPolygon(x,y,points) {
-    let inside=false;
-    for(let i=0,j=points.length-1;i<points.length;j=i++) {
-      const a=points[i], b=points[j];
-      if(((a.y>y)!==(b.y>y)) && x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x) inside=!inside;
-    }
-    return inside;
-  }
-  function previewPoint(event) {
-    const rect=preview.getBoundingClientRect();
-    return {x:(event.clientX-rect.left)*preview.width/rect.width,y:(event.clientY-rect.top)*preview.height/rect.height};
-  }
-  function findHoveredFace(point) {
-    // Faces are painter-sorted far-to-near, so scan backward for the frontmost hit.
-    for(let i=state.previewFaces.length-1;i>=0;i--) if(pointInPolygon(point.x,point.y,state.previewFaces[i].verts)) return state.previewFaces[i];
-    return null;
-  }
-  function renderPreview() {
-    const w=preview.width,h=preview.height; pctx.clearRect(0,0,w,h); pctx.fillStyle="#0b1120"; pctx.fillRect(0,0,w,h);
-    const extent=Math.max(state.xDim,state.yDim,state.zDim), scale=Math.min(w,h)*.70/Math.max(extent,1), camera=Math.max(extent*3.5,20), cx=w/2, cy=h/2+8;
-    const faces=[];
-    for(let y=0;y<state.yDim;y++) for(let z=0;z<state.zDim;z++) for(let x=0;x<state.xDim;x++) {
-      const type=getBlock(x,y,z); if(!type) continue;
-      const color=blockColor(type), vx=x-(state.xDim-1)/2, vy=y-(state.yDim-1)/2, vz=z-(state.zDim-1)/2;
-      for(const face of cubeFaces) {
-        const [dx,dy,dz]=face.n; if(getBlock(x+dx,y+dy,z+dz)!==0) continue;
-        const verts=face.v.map(([a,b,c])=>project(vx+a,vy+b,vz+c,cx,cy,scale,camera));
-        faces.push({verts,depth:verts.reduce((sum,p)=>sum+p.depth,0)/4,color:shade(color,face.s),voxel:{x,y,z},normal:face.n});
-      }
-    }
-    faces.sort((a,b)=>b.depth-a.depth);
-    state.previewFaces=faces;
-    for(const f of faces) {
-      pctx.beginPath(); pctx.moveTo(f.verts[0].x,f.verts[0].y); for(let i=1;i<4;i++) pctx.lineTo(f.verts[i].x,f.verts[i].y); pctx.closePath();
-      pctx.fillStyle=f.color; pctx.fill(); pctx.strokeStyle="rgba(10,15,25,.62)"; pctx.lineWidth=1; pctx.stroke();
-    }
-    if(state.hoveredFace) {
-      const f=state.hoveredFace;
-      pctx.beginPath(); pctx.moveTo(f.verts[0].x,f.verts[0].y); for(let i=1;i<4;i++) pctx.lineTo(f.verts[i].x,f.verts[i].y); pctx.closePath();
-      pctx.fillStyle="rgba(255,235,80,.34)"; pctx.fill(); pctx.strokeStyle="#fff176"; pctx.lineWidth=3; pctx.stroke();
-    }
-    pctx.fillStyle="#94a3b8"; pctx.font="13px Arial"; pctx.fillText(`${state.xDim} × ${state.yDim} × ${state.zDim} · Y up`,12,h-14);
-  }
-  function schedulePreview() {
-    if(state.frame) return;
-    const tick=()=>{
-      state.yaw+=(state.targetYaw-state.yaw)*.2; state.pitch+=(state.targetPitch-state.pitch)*.2; renderPreview();
-      if(Math.abs(state.targetYaw-state.yaw)>.0005||Math.abs(state.targetPitch-state.pitch)>.0005) state.frame=requestAnimationFrame(tick);
-      else {state.frame=0;state.yaw=state.targetYaw;state.pitch=state.targetPitch;renderPreview();}
-    };
-    state.frame=requestAnimationFrame(tick);
-  }
-  function addAtHoveredFace() {
-    const f=state.hoveredFace; if(!f) return false;
-    const x=f.voxel.x+f.normal[0], y=f.voxel.y+f.normal[1], z=f.voxel.z+f.normal[2];
-    if(!inBounds(x,y,z)||getBlock(x,y,z)!==0) return false;
-    setBlock(x,y,z,state.selectedType); renderEditor(); schedulePreview();
-    $("statusText").textContent=`Placed ${state.palette[state.selectedType]?.Name || "block"} at ${x}, ${y}, ${z}`;
-    return true;
-  }
-  function bind() {
-    $("newGridBtn").addEventListener("click",newGrid); $("saveBtn").addEventListener("click",saveBlo); $("loadBtn").addEventListener("click",()=>$("fileInput").click()); $("clearLayerBtn").addEventListener("click",clearLayer);
+  const cubeFaces=[{n:[1,0,0],s:1.08,v:[[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]]},{n:[-1,0,0],s:.72,v:[[-.5,.5,-.5],[-.5,-.5,-.5],[-.5,-.5,.5],[-.5,.5,.5]]},{n:[0,1,0],s:1.22,v:[[-.5,.5,-.5],[.5,.5,-.5],[.5,.5,.5],[-.5,.5,.5]]},{n:[0,-1,0],s:.62,v:[[-.5,-.5,-.5],[.5,-.5,-.5],[.5,-.5,.5],[-.5,-.5,.5]]},{n:[0,0,1],s:.92,v:[[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]]},{n:[0,0,-1],s:.82,v:[[.5,-.5,-.5],[-.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5]]}];
+  function shade(hex,f){const n=parseInt(hex.slice(1),16);return`rgb(${Math.round(clamp((n>>16&255)*f,0,255))},${Math.round(clamp((n>>8&255)*f,0,255))},${Math.round(clamp((n&255)*f,0,255))})`;}
+  function project(x,y,z,cx,cy,scale,camera){const c=Math.cos(state.yaw),s=Math.sin(state.yaw),xr=c*x-s*z,zr=s*x+c*z,cp=Math.cos(state.pitch),sp=Math.sin(state.pitch),sy=y*cp-zr*sp,depth=y*sp+zr*cp,p=camera/(camera+depth);return{x:cx+xr*scale*p,y:cy-sy*scale*p,depth};}
+  function pointInPolygon(x,y,pts){let inside=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if((a.y>y)!==(b.y>y)&&x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x)inside=!inside;}return inside;}
+  function previewPoint(e){const r=preview.getBoundingClientRect();return{x:(e.clientX-r.left)*preview.width/r.width,y:(e.clientY-r.top)*preview.height/r.height};}
+  function findHovered(p){for(let i=state.previewFaces.length-1;i>=0;i--)if(pointInPolygon(p.x,p.y,state.previewFaces[i].verts))return state.previewFaces[i];return null;}
+  function renderPreview(){const w=preview.width,h=preview.height;pctx.clearRect(0,0,w,h);pctx.fillStyle="#0b1120";pctx.fillRect(0,0,w,h);const ext=Math.max(state.xDim,state.yDim,state.zDim),scale=Math.min(w,h)*.70/Math.max(ext,1),camera=Math.max(ext*3.5,20),cx=w/2,cy=h/2+8,faces=[];for(let y=0;y<state.yDim;y++)for(let z=0;z<state.zDim;z++)for(let x=0;x<state.xDim;x++){const type=getBlock(x,y,z);if(!type)continue;const color=blockColor(type),vx=x-(state.xDim-1)/2,vy=y-(state.yDim-1)/2,vz=z-(state.zDim-1)/2;for(const f of cubeFaces){const[dx,dy,dz]=f.n;if(getBlock(x+dx,y+dy,z+dz)!==0)continue;const verts=f.v.map(([a,b,c])=>project(vx+a,vy+b,vz+c,cx,cy,scale,camera));faces.push({verts,depth:verts.reduce((s,p)=>s+p.depth,0)/4,color:shade(color,f.s),voxel:{x,y,z},normal:f.n});}}faces.sort((a,b)=>b.depth-a.depth);state.previewFaces=faces;for(const f of faces){pctx.beginPath();pctx.moveTo(f.verts[0].x,f.verts[0].y);for(let i=1;i<4;i++)pctx.lineTo(f.verts[i].x,f.verts[i].y);pctx.closePath();pctx.fillStyle=f.color;pctx.fill();pctx.strokeStyle="rgba(10,15,25,.62)";pctx.lineWidth=1;pctx.stroke();}if(state.hoveredFace&&faces.includes(state.hoveredFace)){const f=state.hoveredFace;pctx.beginPath();pctx.moveTo(f.verts[0].x,f.verts[0].y);for(let i=1;i<4;i++)pctx.lineTo(f.verts[i].x,f.verts[i].y);pctx.closePath();pctx.fillStyle="rgba(255,235,80,.34)";pctx.fill();pctx.strokeStyle="#fff176";pctx.lineWidth=3;pctx.stroke();}pctx.fillStyle="#94a3b8";pctx.font="13px Arial";pctx.fillText(`${state.xDim} × ${state.yDim} × ${state.zDim} · Y up`,12,h-14);}
+  function schedulePreview(){if(state.frame)return;const tick=()=>{state.yaw+=(state.targetYaw-state.yaw)*.2;state.pitch+=(state.targetPitch-state.pitch)*.2;renderPreview();if(Math.abs(state.targetYaw-state.yaw)>.0005||Math.abs(state.targetPitch-state.pitch)>.0005)state.frame=requestAnimationFrame(tick);else{state.frame=0;state.yaw=state.targetYaw;state.pitch=state.targetPitch;renderPreview();}};state.frame=requestAnimationFrame(tick);}
+  function addAtHoveredFace(){const f=state.hoveredFace;if(!f)return;const x=f.voxel.x+f.normal[0],y=f.voxel.y+f.normal[1],z=f.voxel.z+f.normal[2];if(!inBounds(x,y,z)||getBlock(x,y,z)!==0)return;setBlock(x,y,z,state.selectedType);renderEditor();schedulePreview();$("statusText").textContent=`Added block at ${x}, ${y}, ${z}`;}
+  function removeHoveredBlock(){const f=state.hoveredFace;if(!f)return;setBlock(f.voxel.x,f.voxel.y,f.voxel.z,0);state.hoveredFace=null;renderEditor();schedulePreview();$("statusText").textContent="Removed block";}
+  function bind(){
+    $("newGridBtn").addEventListener("click",newGrid);$("expandGridBtn").addEventListener("click",expandGrid);$("saveBtn").addEventListener("click",saveBlo);$("loadBtn").addEventListener("click",()=>$("fileInput").click());$("clearLayerBtn").addEventListener("click",clearLayer);
     $("fileInput").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{loadBlo(JSON.parse(String(r.result)),f.name);}catch(err){$("statusText").textContent=`Load failed: ${err.message}`;}e.target.value="";};r.readAsText(f);});
-    $("viewMode").addEventListener("change",e=>{state.view=e.target.value;updateLayer();renderEditor();});
-    $("layerSlider").addEventListener("input",e=>{state.layer=Number(e.target.value);$("layerReadout").textContent=String(state.layer);renderEditor();});
-    $("brushSlider").addEventListener("input",e=>{state.brushSize=Number(e.target.value);$("brushReadout").textContent=String(state.brushSize);});
-    $("blockSelect").addEventListener("change",e=>{state.selectedType=Number(e.target.value);updatePalette();});
-    editor.addEventListener("contextmenu",e=>e.preventDefault()); editor.addEventListener("mousedown",e=>{if(e.button===0||e.button===2)paint(e);}); editor.addEventListener("mousemove",e=>{if(e.buttons===1||e.buttons===2)paint(e);});
-    preview.addEventListener("contextmenu",e=>e.preventDefault());
-    preview.addEventListener("pointermove",e=>{
-      if(state.dragging) {
-        const dx=e.clientX-state.lastX,dy=e.clientY-state.lastY; state.lastX=e.clientX; state.lastY=e.clientY;
-        state.targetYaw+=dx*.01; state.targetPitch=clamp(state.targetPitch+dy*.01,-1.45,1.45); schedulePreview(); return;
-      }
-      const hit=findHoveredFace(previewPoint(e));
-      if(hit!==state.hoveredFace) { state.hoveredFace=hit; renderPreview(); }
-    });
-    preview.addEventListener("pointerleave",()=>{if(!state.dragging&&state.hoveredFace){state.hoveredFace=null;renderPreview();}});
-    preview.addEventListener("pointerdown",e=>{
-      if(e.button===2) {state.dragging=true;state.lastX=e.clientX;state.lastY=e.clientY;preview.classList.add("dragging");preview.setPointerCapture(e.pointerId);e.preventDefault();}
-      else if(e.button===0) addAtHoveredFace();
-    });
-    const stop=()=>{state.dragging=false;preview.classList.remove("dragging");}; preview.addEventListener("pointerup",stop);preview.addEventListener("pointercancel",stop);window.addEventListener("blur",stop);
-    window.addEventListener("resize",()=>{renderEditor();renderPreview();});
+    $("viewMode").addEventListener("change",e=>{state.view=e.target.value;updateLayer();renderEditor();});$("layerSlider").addEventListener("input",e=>{state.layer=Number(e.target.value);$("layerReadout").textContent=String(state.layer);renderEditor();});
+    $("pickerButton").addEventListener("click",()=>$("pickerMenu").classList.toggle("open"));document.addEventListener("click",e=>{if(!e.target.closest(".block-picker"))$("pickerMenu").classList.remove("open");});
+    $("applyBlockBtn").addEventListener("click",updateBlock);$("addBlockBtn").addEventListener("click",addBlockType);
+    $("blockColor").addEventListener("input",()=>{$("pickerSwatch").style.backgroundColor=$("blockColor").value;});
+    editor.addEventListener("contextmenu",e=>e.preventDefault());editor.addEventListener("mousedown",e=>{if(e.button===0||e.button===2)paintEditor(e);});editor.addEventListener("mousemove",e=>{if(e.buttons===1||e.buttons===2)paintEditor(e);});
+    preview.addEventListener("contextmenu",e=>e.preventDefault());preview.addEventListener("pointermove",e=>{if(state.rotating){const dx=e.clientX-state.lastX,dy=e.clientY-state.lastY;state.lastX=e.clientX;state.lastY=e.clientY;state.targetYaw+=dx*.01;state.targetPitch=clamp(state.targetPitch+dy*.01,-1.45,1.45);schedulePreview();return;}const hit=findHovered(previewPoint(e));if(hit!==state.hoveredFace){state.hoveredFace=hit;renderPreview();}});preview.addEventListener("pointerleave",()=>{if(!state.rotating&&state.hoveredFace){state.hoveredFace=null;renderPreview();}});
+    preview.addEventListener("pointerdown",e=>{if(e.button===1){state.rotating=true;state.lastX=e.clientX;state.lastY=e.clientY;preview.classList.add("rotating");preview.setPointerCapture(e.pointerId);e.preventDefault();}else if(e.button===0)addAtHoveredFace();else if(e.button===2)removeHoveredBlock();});
+    const stop=()=>{state.rotating=false;preview.classList.remove("rotating");};preview.addEventListener("pointerup",stop);preview.addEventListener("pointercancel",stop);window.addEventListener("blur",stop);window.addEventListener("resize",()=>{renderEditor();renderPreview();});
   }
-  $("viewMode").value=state.view; $("brushReadout").textContent=String(state.brushSize); updatePalette(); updateLayer(); bind(); renderEditor(); renderPreview();
+  $("viewMode").value=state.view;updatePicker();selectBlock(state.selectedType);updateLayer();bind();renderEditor();renderPreview();
 </script>
 </body>
 </html>
