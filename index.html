@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RTS Game Voxel Editor</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --line: #374151;
+      --accent: #60a5fa;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #0b1020 0%, #111827 100%);
+      color: var(--text);
+      padding: 16px;
+    }
+
+    .app {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px;
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input[type="number"], select {
+      background: #0f172a;
+      border: 1px solid #4b5563;
+      border-radius: 6px;
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    input[type="number"] { width: 72px; }
+    input[type="range"] { accent-color: var(--accent); }
+
+    button {
+      background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+      padding: 8px 12px;
+    }
+
+    button.secondary { background: linear-gradient(180deg, #4b5563 0%, #374151 100%); }
+    button.danger { background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%); }
+    button:hover { filter: brightness(1.08); }
+
+    .status {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 4px 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 0.9fr;
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .panel {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      color: #dbeafe;
+      font-size: 14px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      background: #0b1120;
+      border: 1px solid #253047;
+      border-radius: 8px;
+      image-rendering: pixelated;
+    }
+
+    #editorCanvas {
+      height: min(68vh, 660px);
+      cursor: crosshair;
+    }
+
+    #previewCanvas {
+      height: min(68vh, 660px);
+      cursor: grab;
+      touch-action: none;
+    }
+
+    #previewCanvas.dragging {
+      cursor: grabbing;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      padding-top: 8px;
+    }
+
+    @media (max-width: 900px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      #editorCanvas, #previewCanvas {
+        height: 52vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <div class="group">
+        <label>X <input id="xDim" type="number" min="1" max="128" value="12" /></label>
+        <label>Y <input id="yDim" type="number" min="1" max="128" value="12" /></label>
+        <label>Z <input id="zDim" type="number" min="1" max="128" value="12" /></label>
+        <button id="newGridBtn">New Grid</button>
+      </div>
+
+      <div class="group">
+        <label>View
+          <select id="viewMode">
+            <option value="xy">XY</option>
+            <option value="xz">XZ</option>
+            <option value="yz">YZ</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="group">
+        <label>Layer <input id="layerSlider" type="range" min="0" max="11" value="0" /></label>
+        <span id="layerReadout">0</span>
+      </div>
+
+      <div class="group">
+        <label>Brush <input id="brushSlider" type="range" min="1" max="5" value="1" /></label>
+        <span id="brushReadout">1</span>
+      </div>
+
+      <div class="group">
+        <label>Block <select id="blockSelect"></select></label>
+      </div>
+
+      <button id="saveBtn">Save .blo</button>
+      <button id="loadBtn" class="secondary">Load .blo</button>
+      <input id="fileInput" type="file" accept=".blo,.json" hidden />
+      <button id="clearLayerBtn" class="danger">Clear Layer</button>
+    </div>
+
+    <div class="status">
+      <span id="statusText">Ready</span>
+      <span>2D: left-click paint, right-click erase</span>
+    </div>
+
+    <div class="workspace">
+      <div class="panel">
+        <h2>2D Layer Editor</h2>
+        <canvas id="editorCanvas" width="960" height="640"></canvas>
+        <div class="hint">Use the layer slider and view selector to edit each slice.</div>
+      </div>
+
+      <div class="panel">
+        <h2>3D Preview</h2>
+        <canvas id="previewCanvas" width="800" height="640"></canvas>
+        <div class="hint">Right-click and drag in the preview to rotate the voxel model.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const defaultPalette = [
+      { Name: "Empty", HasBlockSmoothing: true, Transparency: true, OcclusionType: 3, Textures: [], ShadowTintFactor: "1, 1, 1", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" },
+      { Name: "Metal Flat", Visible: true, Textures: ["Content/blocks/metal/flat metal"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" },
+      { Name: "Metal Plate Structured", Visible: true, Textures: ["Content/blocks/metal/metal plate structured"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" },
+      { Name: "Ventilation", Visible: true, Textures: ["Content/blocks/apartment/ventilation"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" },
+      { Name: "Metal Plate", Visible: true, Textures: ["Content/blocks/metal/metal plate"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" },
+      { Name: "Color Light Blue", Visible: true, Textures: ["Content/blocks/basiccolors/lightblue"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "100, 100, 200, 255", Scale: "1, 1, 1" },
+      { Name: "Color Red", Visible: true, Textures: ["Content/blocks/basiccolors/red"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "200, 100, 100, 255", Scale: "1, 1, 1" },
+      { Name: "Carpet Blue", Visible: true, Textures: ["Content/blocks/apartment/carpet blue"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" },
+      { Name: "Glass with borders", Visible: true, UseAlpha: true, HasBlockSmoothing: true, Transparency: true, OcclusionType: 1, Textures: ["Content/blocks/glass/bordered window"], ShadowTintFactor: "0.7843138, 0.7843138, 0.7843138", LightColor: "0, 0, 0, 255", Scale: "1, 1, 1" }
+    ];
+
+    const state = {
+      xDim: 12,
+      yDim: 12,
+      zDim: 12,
+      blocks: new Uint32Array(12 * 12 * 12),
+      palette: JSON.parse(JSON.stringify(defaultPalette)),
+      selectedType: 1,
+      view: "xy",
+      layer: 0,
+      brushSize: 1,
+      fileName: "voxel.blo",
+      extraFileData: {},
+      yaw: -0.8,
+      pitch: 0.75,
+      targetYaw: -0.8,
+      targetPitch: 0.75,
+      dragging: false,
+      lastPointerX: 0,
+      lastPointerY: 0,
+      previewFrame: 0
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const editorCanvas = $("editorCanvas");
+    const editorCtx = editorCanvas.getContext("2d");
+    const previewCanvas = $("previewCanvas");
+    const previewCtx = previewCanvas.getContext("2d");
+
+    function clamp(n, min, max) { return Math.min(Math.max(n, min), max); }
+    function indexOf(x, y, z) { return x + state.xDim * (y + state.yDim * z); }
+    function inBounds(x, y, z) {
+      return x >= 0 && x < state.xDim && y >= 0 && y < state.yDim && z >= 0 && z < state.zDim;
+    }
+    function getBlock(x, y, z) {
+      if (!inBounds(x, y, z)) return 0;
+      return state.blocks[indexOf(x, y, z)];
+    }
+    function setBlock(x, y, z, value) {
+      if (!inBounds(x, y, z)) return;
+      state.blocks[indexOf(x, y, z)] = value;
+    }
+
+    function nameToColor(name) {
+      const n = (name || "").toLowerCase();
+      if (n.includes("red")) return "#ef4444";
+      if (n.includes("light blue") || n.includes("blue")) return "#60a5fa";
+      if (n.includes("green")) return "#34d399";
+      if (n.includes("glass")) return "#93c5fd";
+      if (n.includes("carpet")) return "#8b5cf6";
+      if (n.includes("vent")) return "#fbbf24";
+      if (n.includes("metal")) return "#d1d5db";
+      return "#94a3b8";
+    }
+
+    function colorForBlock(type) {
+      if (type === 0) return "#0b1120";
+      const name = state.palette[type] ? state.palette[type].Name : "";
+      return nameToColor(name);
+    }
+
+    function layerCount() {
+      if (state.view === "xy") return state.zDim;
+      if (state.view === "xz") return state.yDim;
+      return state.xDim;
+    }
+
+    function updateLayerControls() {
+      const max = Math.max(0, layerCount() - 1);
+      state.layer = clamp(state.layer, 0, max);
+      $("layerSlider").max = String(max);
+      $("layerSlider").value = String(state.layer);
+      $("layerReadout").textContent = String(state.layer);
+    }
+
+    function updatePaletteSelect() {
+      const select = $("blockSelect");
+      select.innerHTML = "";
+      state.palette.forEach((entry, i) => {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `${i}: ${entry.Name || "Block"}`;
+        select.appendChild(opt);
+      });
+      state.selectedType = clamp(state.selectedType, 0, state.palette.length - 1);
+      select.value = String(state.selectedType);
+    }
+
+    function renderEditor() {
+      const ctx = editorCtx;
+      const width = editorCanvas.width;
+      const height = editorCanvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      let cols = 0, rows = 0;
+      if (state.view === "xy") { cols = state.xDim; rows = state.yDim; }
+      else if (state.view === "xz") { cols = state.xDim; rows = state.zDim; }
+      else { cols = state.yDim; rows = state.zDim; }
+
+      const margin = 30;
+      const cell = Math.max(4, Math.min((width - margin * 2) / cols, (height - margin * 2) / rows));
+      const offsetX = (width - cols * cell) / 2;
+      const offsetY = (height - rows * cell) / 2;
+
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "14px Arial";
+      ctx.fillText(`${state.view.toUpperCase()} view · layer ${state.layer}`, 16, 20);
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          let x = 0, y = 0, z = 0;
+          if (state.view === "xy") { x = col; y = row; z = state.layer; }
+          else if (state.view === "xz") { x = col; y = state.layer; z = row; }
+          else { x = state.layer; y = col; z = row; }
+
+          const px = offsetX + col * cell;
+          const py = offsetY + row * cell;
+          const type = getBlock(x, y, z);
+
+          ctx.fillStyle = colorForBlock(type);
+          ctx.fillRect(px + 1, py + 1, cell - 2, cell - 2);
+          ctx.strokeStyle = "#2d3748";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px, py, cell, cell);
+        }
+      }
+    }
+
+    function editorPointerToVoxel(event) {
+      const rect = editorCanvas.getBoundingClientRect();
+      const mouseX = (event.clientX - rect.left) * editorCanvas.width / rect.width;
+      const mouseY = (event.clientY - rect.top) * editorCanvas.height / rect.height;
+
+      let cols = 0, rows = 0;
+      if (state.view === "xy") { cols = state.xDim; rows = state.yDim; }
+      else if (state.view === "xz") { cols = state.xDim; rows = state.zDim; }
+      else { cols = state.yDim; rows = state.zDim; }
+
+      const margin = 30;
+      const cell = Math.max(4, Math.min((editorCanvas.width - margin * 2) / cols, (editorCanvas.height - margin * 2) / rows));
+      const offsetX = (editorCanvas.width - cols * cell) / 2;
+      const offsetY = (editorCanvas.height - rows * cell) / 2;
+
+      const col = Math.floor((mouseX - offsetX) / cell);
+      const row = Math.floor((mouseY - offsetY) / cell);
+      if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+
+      if (state.view === "xy") return { x: col, y: row, z: state.layer };
+      if (state.view === "xz") return { x: col, y: state.layer, z: row };
+      return { x: state.layer, y: col, z: row };
+    }
+
+    function paint(event) {
+      const point = editorPointerToVoxel(event);
+      if (!point) return;
+
+      const erase = event.button === 2 || (event.buttons & 2) === 2;
+      const value = erase ? 0 : state.selectedType;
+      const radius = Math.floor(state.brushSize / 2);
+
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dz = -radius; dz <= radius; dz++) {
+            setBlock(point.x + dx, point.y + dy, point.z + dz, value);
+          }
+        }
+      }
+
+      renderEditor();
+      schedulePreview();
+    }
+
+    function clearLayer() {
+      if (state.view === "xy") {
+        for (let x = 0; x < state.xDim; x++)
+          for (let y = 0; y < state.yDim; y++)
+            setBlock(x, y, state.layer, 0);
+      } else if (state.view === "xz") {
+        for (let x = 0; x < state.xDim; x++)
+          for (let z = 0; z < state.zDim; z++)
+            setBlock(x, state.layer, z, 0);
+      } else {
+        for (let y = 0; y < state.yDim; y++)
+          for (let z = 0; z < state.zDim; z++)
+            setBlock(state.layer, y, z, 0);
+      }
+
+      $("statusText").textContent = "Current layer cleared";
+      renderEditor();
+      schedulePreview();
+    }
+
+    function newGrid() {
+      const x = clamp(Number($("xDim").value) || 12, 1, 128);
+      const y = clamp(Number($("yDim").value) || 12, 1, 128);
+      const z = clamp(Number($("zDim").value) || 12, 1, 128);
+
+      state.xDim = x;
+      state.yDim = y;
+      state.zDim = z;
+      state.blocks = new Uint32Array(x * y * z);
+      state.palette = JSON.parse(JSON.stringify(defaultPalette));
+      state.fileName = "voxel.blo";
+      state.extraFileData = {};
+      state.selectedType = 1;
+      state.layer = 0;
+
+      $("xDim").value = String(x);
+      $("yDim").value = String(y);
+      $("zDim").value = String(z);
+      updatePaletteSelect();
+      updateLayerControls();
+      renderEditor();
+      schedulePreview();
+      $("statusText").textContent = `New grid created: ${x} × ${y} × ${z}`;
+    }
+
+    function loadBlo(raw, fileName) {
+      const json = typeof raw === "string" ? JSON.parse(raw) : raw;
+      const x = Number(json.XDim);
+      const y = Number(json.YDim);
+      const z = Number(json.ZDim);
+
+      if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(z) || x < 1 || y < 1 || z < 1 || !Array.isArray(json.Blocks)) {
+        throw new Error("Invalid .blo file");
+      }
+
+      state.xDim = x;
+      state.yDim = y;
+      state.zDim = z;
+      state.blocks = new Uint32Array(x * y * z);
+      const total = Math.min(state.blocks.length, json.Blocks.length);
+      for (let i = 0; i < total; i++) {
+        state.blocks[i] = Number(json.Blocks[i]) || 0;
+      }
+
+      state.palette = Array.isArray(json.BlockTypeInstances) && json.BlockTypeInstances.length
+        ? JSON.parse(JSON.stringify(json.BlockTypeInstances))
+        : JSON.parse(JSON.stringify(defaultPalette));
+
+      state.extraFileData = { ...json };
+      delete state.extraFileData.XDim;
+      delete state.extraFileData.YDim;
+      delete state.extraFileData.ZDim;
+      delete state.extraFileData.Blocks;
+      delete state.extraFileData.BlockTypeInstances;
+
+      state.fileName = fileName || "voxel.blo";
+      state.selectedType = 1;
+      state.layer = 0;
+
+      $("xDim").value = String(x);
+      $("yDim").value = String(y);
+      $("zDim").value = String(z);
+      updatePaletteSelect();
+      updateLayerControls();
+      renderEditor();
+      schedulePreview();
+      $("statusText").textContent = `Loaded ${state.fileName}`;
+    }
+
+    function saveBlo() {
+      const output = {
+        ...state.extraFileData,
+        XDim: state.xDim,
+        YDim: state.yDim,
+        ZDim: state.zDim,
+        Blocks: Array.from(state.blocks),
+        BlockTypeInstances: JSON.parse(JSON.stringify(state.palette))
+      };
+
+      const blob = new Blob([JSON.stringify(output, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = state.fileName || "voxel.blo";
+      link.click();
+      URL.revokeObjectURL(url);
+      $("statusText").textContent = `Saved ${link.download}`;
+    }
+
+    const cubeFaces = [
+      { neighbor: [1, 0, 0], shade: 1.08, verts: [[0.5,-0.5,-0.5],[0.5,0.5,-0.5],[0.5,0.5,0.5],[0.5,-0.5,0.5]] },
+      { neighbor: [-1, 0, 0], shade: 0.72, verts: [[-0.5,0.5,-0.5],[-0.5,-0.5,-0.5],[-0.5,-0.5,0.5],[-0.5,0.5,0.5]] },
+      { neighbor: [0, 1, 0], shade: 0.94, verts: [[0.5,0.5,-0.5],[-0.5,0.5,-0.5],[-0.5,0.5,0.5],[0.5,0.5,0.5]] },
+      { neighbor: [0, -1, 0], shade: 0.78, verts: [[-0.5,-0.5,-0.5],[0.5,-0.5,-0.5],[0.5,-0.5,0.5],[-0.5,-0.5,0.5]] },
+      { neighbor: [0, 0, 1], shade: 1.2, verts: [[-0.5,-0.5,0.5],[0.5,-0.5,0.5],[0.5,0.5,0.5],[-0.5,0.5,0.5]] },
+      { neighbor: [0, 0, -1], shade: 0.62, verts: [[-0.5,0.5,-0.5],[0.5,0.5,-0.5],[0.5,-0.5,-0.5],[-0.5,-0.5,-0.5]] }
+    ];
+
+    function shadeColor(hex, factor) {
+      const h = hex.replace("#", "");
+      const num = parseInt(h, 16);
+      const r = clamp(((num >> 16) & 255) * factor, 0, 255);
+      const g = clamp(((num >> 8) & 255) * factor, 0, 255);
+      const b = clamp((num & 255) * factor, 0, 255);
+      return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+    }
+
+    function projectPoint(x, y, z, centerX, centerY, scale, cameraDistance) {
+      const cY = Math.cos(state.yaw);
+      const sY = Math.sin(state.yaw);
+      const x1 = cY * x - sY * y;
+      const y1 = sY * x + cY * y;
+
+      const cP = Math.cos(state.pitch);
+      const sP = Math.sin(state.pitch);
+      const y2 = y1 * sP - z * cP;
+      const depth = y1 * cP + z * sP;
+      const perspective = cameraDistance / (cameraDistance + depth);
+
+      return {
+        x: centerX + x1 * scale * perspective,
+        y: centerY + y2 * scale * perspective,
+        depth
+      };
+    }
+
+    function renderPreview() {
+      const ctx = previewCtx;
+      const width = previewCanvas.width;
+      const height = previewCanvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#0b1120";
+      ctx.fillRect(0, 0, width, height);
+
+      const maxAxis = Math.max(state.xDim, state.yDim, state.zDim);
+      const scale = Math.min(width, height) * 0.58 / Math.max(maxAxis, 1);
+      const cameraDistance = Math.max(maxAxis * 3.2, 18);
+      const centerX = width / 2;
+      const centerY = height / 2 + 8;
+
+      const faces = [];
+
+      for (let z = 0; z < state.zDim; z++) {
+        for (let y = 0; y < state.yDim; y++) {
+          for (let x = 0; x < state.xDim; x++) {
+            const type = getBlock(x, y, z);
+            if (type === 0) continue;
+
+            const color = colorForBlock(type);
+            const cx = x - (state.xDim - 1) / 2;
+            const cy = y - (state.yDim - 1) / 2;
+            const cz = z - (state.zDim - 1) / 2;
+
+            cubeFaces.forEach((face) => {
+              const [nx, ny, nz] = face.neighbor;
+              if (getBlock(x + nx, y + ny, z + nz) !== 0) return;
+
+              const verts = face.verts.map(([vx, vy, vz]) => projectPoint(cx + vx, cy + vy, cz + vz, centerX, centerY, scale, cameraDistance));
+              const depth = verts.reduce((sum, v) => sum + v.depth, 0) / verts.length;
+              faces.push({ verts, depth, color: shadeColor(color, face.shade) });
+            });
+          }
+        }
+      }
+
+      faces.sort((a, b) => b.depth - a.depth);
+
+      faces.forEach((face) => {
+        ctx.beginPath();
+        ctx.moveTo(face.verts[0].x, face.verts[0].y);
+        for (let i = 1; i < face.verts.length; i++) {
+          ctx.lineTo(face.verts[i].x, face.verts[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = face.color;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(10, 15, 25, 0.7)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "13px Arial";
+      ctx.fillText(`${state.xDim} × ${state.yDim} × ${state.zDim}`, 12, height - 14);
+    }
+
+    function schedulePreview() {
+      if (state.previewFrame) return;
+
+      const animate = () => {
+        state.yaw += (state.targetYaw - state.yaw) * 0.18;
+        state.pitch += (state.targetPitch - state.pitch) * 0.18;
+        renderPreview();
+
+        const shouldContinue = Math.abs(state.targetYaw - state.yaw) > 0.0005 || Math.abs(state.targetPitch - state.pitch) > 0.0005;
+        if (shouldContinue) {
+          state.previewFrame = requestAnimationFrame(animate);
+        } else {
+          state.previewFrame = 0;
+          state.yaw = state.targetYaw;
+          state.pitch = state.targetPitch;
+          renderPreview();
+        }
+      };
+
+      state.previewFrame = requestAnimationFrame(animate);
+    }
+
+    function bindEvents() {
+      $("newGridBtn").addEventListener("click", newGrid);
+      $("saveBtn").addEventListener("click", saveBlo);
+      $("loadBtn").addEventListener("click", () => $("fileInput").click());
+      $("clearLayerBtn").addEventListener("click", clearLayer);
+
+      $("fileInput").addEventListener("change", (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            loadBlo(String(reader.result), file.name);
+          } catch (err) {
+            $("statusText").textContent = `Load failed: ${err.message}`;
+          }
+          event.target.value = "";
+        };
+        reader.readAsText(file);
+      });
+
+      $("viewMode").addEventListener("change", (event) => {
+        state.view = event.target.value;
+        updateLayerControls();
+        renderEditor();
+      });
+
+      $("layerSlider").addEventListener("input", (event) => {
+        state.layer = Number(event.target.value);
+        $("layerReadout").textContent = String(state.layer);
+        renderEditor();
+      });
+
+      $("brushSlider").addEventListener("input", (event) => {
+        state.brushSize = Number(event.target.value);
+        $("brushReadout").textContent = String(state.brushSize);
+      });
+
+      $("blockSelect").addEventListener("change", (event) => {
+        state.selectedType = Number(event.target.value);
+      });
+
+      editorCanvas.addEventListener("contextmenu", (event) => event.preventDefault());
+      editorCanvas.addEventListener("mousedown", (event) => {
+        if (event.button === 0 || event.button === 2) paint(event);
+      });
+      editorCanvas.addEventListener("mousemove", (event) => {
+        if (event.buttons === 1 || event.buttons === 2) paint(event);
+      });
+
+      previewCanvas.addEventListener("contextmenu", (event) => event.preventDefault());
+      previewCanvas.addEventListener("mousedown", (event) => {
+        if (event.button !== 2) return;
+        state.dragging = true;
+        state.lastPointerX = event.clientX;
+        state.lastPointerY = event.clientY;
+        previewCanvas.classList.add("dragging");
+      });
+
+      previewCanvas.addEventListener("mousemove", (event) => {
+        if (!state.dragging || event.buttons !== 2) return;
+        const dx = event.clientX - state.lastPointerX;
+        const dy = event.clientY - state.lastPointerY;
+        state.lastPointerX = event.clientX;
+        state.lastPointerY = event.clientY;
+        state.targetYaw += dx * 0.01;
+        state.targetPitch = clamp(state.targetPitch + dy * 0.01, -1.5, 1.5);
+        schedulePreview();
+      });
+
+      const stopDrag = () => {
+        state.dragging = false;
+        previewCanvas.classList.remove("dragging");
+      };
+
+      previewCanvas.addEventListener("mouseup", stopDrag);
+      previewCanvas.addEventListener("mouseleave", stopDrag);
+      previewCanvas.addEventListener("pointercancel", stopDrag);
+      window.addEventListener("blur", stopDrag);
+      window.addEventListener("resize", () => {
+        renderEditor();
+        renderPreview();
+      });
+    }
+
+    function init() {
+      $("brushSlider").value = String(state.brushSize);
+      $("brushReadout").textContent = String(state.brushSize);
+      $("viewMode").value = state.view;
+      updatePaletteSelect();
+      updateLayerControls();
+      bindEvents();
+      renderEditor();
+      renderPreview();
+      $("statusText").textContent = "Ready";
+    }
+
+    init();
+  </script>
+</body>
+</html>
